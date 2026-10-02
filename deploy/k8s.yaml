@@ -1,0 +1,130 @@
+# Applied by deploy.sh, which substitutes ${APP_HOST}. Code and static assets come from
+# ConfigMaps, credentials from the toronto-cut-secrets Secret; nothing here is sensitive.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: toronto-cut
+  labels:
+    app: toronto-cut
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: toronto-cut
+  template:
+    metadata:
+      labels:
+        app: toronto-cut
+    spec:
+      containers:
+      - name: app
+        image: python:3.12-slim
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        env:
+        - name: PORT
+          value: "8080"
+        - name: DIRECTOR_DATA_DIR
+          value: /data/app
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        - name: CPU_THREADS
+          value: "6"
+        - name: FFMPEG_THREADS
+          value: "2"
+        - name: OMP_NUM_THREADS
+          value: "6"
+        envFrom:
+        - secretRef:
+            name: toronto-cut-secrets
+        command: ["bash", "-c"]
+        args:
+        - |
+          set -euo pipefail
+          mkdir -p /srv/app/static /data/app
+          cp /cm/code/* /srv/app/
+          cp /cm/static/* /srv/app/static/
+          cd /srv/app
+          VENV="/data/venv-$(sha1sum requirements.txt | cut -c1-12)"
+          if [ ! -x "$VENV/bin/python" ]; then
+            rm -rf "$VENV.tmp"
+            python -m venv "$VENV.tmp"
+            "$VENV.tmp/bin/pip" install --no-cache-dir -q -r requirements.txt
+            mv "$VENV.tmp" "$VENV"
+          fi
+          exec "$VENV/bin/python" main.py
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "2"
+            memory: 1Gi
+          limits:
+            cpu: "8"
+            memory: 4Gi
+        volumeMounts:
+        - name: code
+          mountPath: /cm/code
+        - name: static
+          mountPath: /cm/static
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: code
+        configMap:
+          name: toronto-cut-code
+      - name: static
+        configMap:
+          name: toronto-cut-static
+      # The vastdata-filesystem PVC class provisions but fails to mount on these nodes
+      # (NFS statd), so films and the voice are re-created per pod.
+      - name: data
+        emptyDir:
+          sizeLimit: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: toronto-cut
+  labels:
+    app: toronto-cut
+spec:
+  selector:
+    app: toronto-cut
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: toronto-cut
+  labels:
+    app: toronto-cut
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # Directing streams server-sent events for ~70 s; buffering would hold them back.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ${APP_HOST}
+    http:
+      paths:
+      - path: /app(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: toronto-cut
+            port:
+              number: 80

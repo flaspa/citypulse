@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CityPulse · Ask the city. It answers in video.</title>
+  <meta name="description" content="CityPulse: ask a question about Toronto and get a 30-second narrated film cut only from real street footage.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%2307090f' stroke='%23ffb547' stroke-width='1.5'/%3E%3Ccircle cx='11' cy='12' r='2.6' fill='%23ffb547'/%3E%3Ccircle cx='21' cy='13' r='2.6' fill='%23ffb547'/%3E%3Ccircle cx='15' cy='21' r='2.6' fill='%23ffb547'/%3E%3C/svg%3E">
+  <script>
+    // Relative API paths need a trailing slash when served under the /app ingress prefix.
+    if (!location.pathname.endsWith("/")) location.replace(location.pathname + "/" + location.search + location.hash);
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Inter:wght@300..600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="static/styles.css?v=20261002-final">
+</head>
+<body data-phase="idle">
+  <div class="grain" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="letterbox top" aria-hidden="true"></div>
+  <div class="letterbox bottom" aria-hidden="true"></div>
+
+  <div class="app">
+    <header class="masthead">
+      <div class="brand" id="brand" title="Back to start">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div>
+          <div class="brand-name">CityPulse</div>
+          <div class="brand-sub">Ask the city. It answers in video.</div>
+        </div>
+      </div>
+      <div class="credits mono">VAST DataEngine · NVIDIA Cosmos · YOLO11 · W&amp;B Inference</div>
+    </header>
+
+    <form id="ask" class="querybar" autocomplete="off">
+      <span class="q-kicker mono">Ask the city</span>
+      <input id="q" name="q" maxlength="300" placeholder="What do you want to see on Toronto's streets?" aria-label="Your question">
+      <button type="submit" id="go"><span>Direct</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+    <div class="chips" id="chips"></div>
+
+    <main class="stage">
+      <section class="panel map-panel" id="city-wrap">
+        <div class="panel-label mono"><span>Toronto · source footage</span><span id="map-count"></span></div>
+        <div class="city-frame">
+          <svg id="city" class="city" aria-label="Stylised map of Toronto drive sources"></svg>
+          <div class="sweep" aria-hidden="true"></div>
+        </div>
+        <aside class="legend mono" id="legend">
+          <div class="legend-row"><i class="lg node"></i>Footage source · 30 s of a drive</div>
+          <div class="legend-row"><i class="lg cand"></i>Evidence surfaced by search</div>
+          <div class="legend-row"><i class="lg chosen"></i>Shot in the final cut · 01–06</div>
+          <div class="legend-note" id="legend-note">Six Toronto drives, laid out by time along each route. Positions are not geographic.</div>
+        </aside>
+      </section>
+
+      <div class="right">
+        <section class="panel evidence-panel" id="evidence-panel" aria-live="polite">
+          <div class="panel-label mono"><span id="ev-label">Recent cuts</span><span id="ev-count"></span></div>
+
+          <div class="welcome" id="welcome">
+            <h2 class="welcome-title">Ask a question about Toronto's streets.</h2>
+            <p class="welcome-copy">CityPulse searches real dash-cam footage, picks six shots that answer you, and narrates a thirty-second film. Every line is checked against what the shots show.</p>
+            <div class="recent" id="recent"></div>
+          </div>
+
+          <div class="searches mono" id="queries"></div>
+          <div class="grid" id="grid"></div>
+
+          <div class="player" id="player">
+            <div class="player-box">
+              <div class="screen" id="screen">
+                <video id="film" playsinline preload="auto"></video>
+                <div class="screen-shade"></div>
+                <div class="slate" id="slate">
+                  <div class="slate-kicker mono" id="slate-kicker">A thirty-second answer</div>
+                  <h1 id="film-title"></h1>
+                  <p class="slate-question" id="slate-question"></p>
+                  <div class="slate-meta mono" id="film-meta"></div>
+                </div>
+                <button class="play" id="play" aria-label="Play film">
+                  <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" class="play-ring"/><path d="M26 20 L46 32 L26 44 Z"/></svg>
+                </button>
+                <div class="shot-credit mono" id="shot-credit"></div>
+              </div>
+            </div>
+            <div class="scrubber" id="scrubber">
+              <div class="scrub-track" id="scrub-track"></div>
+              <div class="scrub-head" id="scrub-head"></div>
+              <div class="scrub-time mono" id="scrub-time">00:00 / 00:30</div>
+            </div>
+            <div class="shotstrip" id="shotstrip"></div>
+          </div>
+        </section>
+
+        <section class="panel response" id="response">
+          <div class="panel-label mono">
+            <span class="resp-title"><span class="rec"><i></i>REC</span>Director's response</span>
+            <ol class="stages" id="stages">
+              <li data-k="search"><i></i>Searching</li>
+              <li data-k="retrieve"><i></i>Retrieving</li>
+              <li data-k="select"><i></i>Selecting 6 shots</li>
+              <li data-k="write"><i></i>Writing narration</li>
+              <li data-k="render"><i></i>Rendering</li>
+            </ol>
+          </div>
+          <div class="status">
+            <span class="status-line" id="status-line">Waiting for a question</span>
+            <span class="status-detail mono" id="status-detail">Pick a suggestion or type your own</span>
+          </div>
+          <div class="progress"><i id="progress"></i></div>
+          <ol class="process" id="process">
+            <li data-k="search"><span class="p-n mono"><i></i>01</span><span class="p-name">Searching</span><span class="p-desc">Caption and visual search across every indexed moment.</span></li>
+            <li data-k="retrieve"><span class="p-n mono"><i></i>02</span><span class="p-name">Retrieving</span><span class="p-desc">Matching moments pulled from the archive and lit on the map.</span></li>
+            <li data-k="select"><span class="p-n mono"><i></i>03</span><span class="p-name">Selecting 6 shots</span><span class="p-desc">Six shots chosen for coverage across drives and time.</span></li>
+            <li data-k="write"><span class="p-n mono"><i></i>04</span><span class="p-name">Writing narration</span><span class="p-desc">One voice-over, every line checked against its shots.</span></li>
+            <li data-k="render"><span class="p-n mono"><i></i>05</span><span class="p-name">Rendering</span><span class="p-desc">Voice, cuts and mix conformed into a 30-second film.</span></li>
+          </ol>
+          <div class="narr">
+            <div class="narr-head mono"><span id="narr-label">Voice-over</span><span class="narr-badge" id="narr-badge"></span></div>
+            <p class="narr-text" id="narr-text"></p>
+          </div>
+          <div class="summary mono" id="summary"></div>
+          <div class="yolo-line mono" id="yolo-line"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+  <script type="module" src="static/app.js?v=20261002-final"></script>
+</body>
+</html>
